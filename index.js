@@ -33,6 +33,8 @@ async function run() {
         await client.connect();
 
          const recipeCollection = client.db('recipeDB').collection('recipes');
+
+
         
         app.get('/recipes', async (req, res) => {
            
@@ -66,14 +68,6 @@ async function run() {
 
 
 
-
-
-
-
-
-
-
-
         app.post('/recipes', async (req, res) => {
             const newRecipe = req.body;
            console.log(newRecipe);
@@ -86,6 +80,39 @@ async function run() {
             const query = { _id: new ObjectId(id) };
             const result = await recipeCollection.findOne(query);
             res.send(result);
+        })
+
+        
+
+        app.put("/recipes/:id", async (req, res) => {
+            const id = req.params.id;
+            const updatedRecipe = req.body;
+
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    image: updatedRecipe.image,
+                    title: updatedRecipe.title,
+                    ingredients: updatedRecipe.ingredients,
+                    instructions: updatedRecipe.instructions,
+                    cuisine: updatedRecipe.cuisine,
+                    prepTime: updatedRecipe.prepTime,
+                    categories: updatedRecipe.categories,
+                },
+            };
+
+            const result = await recipeCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+
+
+        app.delete('/recipes/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await recipeCollection.deleteOne(query);
+            res.send(result);
+            
         })
 
 
