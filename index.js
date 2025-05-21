@@ -41,6 +41,36 @@ async function run() {
 
         })
 
+        //  likes to recipe card
+        // PATCH route to update likes
+        app.patch('/recipes/:id/like', async (req, res) => {
+            const { id } = req.params;
+
+            try {
+                const result = await recipesCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $inc: { likes: 1 } } // Increment the likes by 1
+                );
+
+                if (result.modifiedCount > 0) {
+                    res.send({ success: true, message: 'Like added' });
+                } else {
+                    res.status(404).send({ success: false, message: 'Recipe not found' });
+                }
+            } catch (error) {
+                console.error('Error updating likes:', error);
+                res.status(500).send({ success: false, message: 'Server error' });
+            }
+        });
+  
+
+
+
+
+
+
+
+
 
 
 
