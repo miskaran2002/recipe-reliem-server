@@ -1,9 +1,10 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
+require('dotenv').config();
+
 const app = express();
 const port = process.env.PORT || 3000;
-require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
@@ -23,18 +24,29 @@ async function run() {
     try {
         await client.connect();
 
-        const recipesCollection = client.db('recipeDB').collection('recipes');
-        const usersCollection = client.db('recipeDB').collection('users');
+        const db = client.db('recipeDB');
+        const recipesCollection = db.collection('recipes');
+        const usersCollection = db.collection('users');
 
-        //  Get recipes filtered by ownerEmail (if provided)
+        //  Get top 6 recipes sorted by likes (this must come before the dynamic :id route)
+        app.get('/recipes/top-liked', async (req, res) => {
+            try {
+                const topRecipes = await recipesCollection
+                    .find({ likes: { $exists: true, $type: 'int' } })
+                    .sort({ likes: -1 })
+                    .limit(6)
+                    .toArray();
+                res.send(topRecipes);
+            } catch (err) {
+                console.error('Error fetching top liked recipes:', err);
+                res.status(500).send({ message: 'Failed to fetch top liked recipes' });
+            }
+        });
+
+        // Get all recipes (or by owner email)
         app.get('/recipes', async (req, res) => {
             const email = req.query.email;
-            let query = {};
-
-            if (email) {
-                query = { ownerEmail: email };
-            }
-
+            const query = email ? { ownerEmail: email } : {};
             try {
                 const result = await recipesCollection.find(query).toArray();
                 res.send(result);
@@ -44,15 +56,20 @@ async function run() {
             }
         });
 
-        //  Get a single recipe by ID
+        //  Get a single recipe by ID (must be after /top-liked)
         app.get('/recipes/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await recipesCollection.findOne(query);
-            res.send(result);
+            try {
+                const id = req.params.id;
+                const recipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
+                if (!recipe) return res.status(404).send({ message: 'Recipe not found' });
+                res.send(recipe);
+            } catch (err) {
+                console.error(err);
+                res.status(400).send({ message: 'Invalid recipe ID' });
+            }
         });
 
-        //  Add a new recipe
+        // Add a new recipe
         app.post('/recipes', async (req, res) => {
             const recipe = req.body;
 
@@ -60,12 +77,18 @@ async function run() {
                 return res.status(400).send({ message: "ownerEmail is required" });
             }
 
-            const result = await recipesCollection.insertOne(recipe);
-            res.send(result);
+            recipe.likes = 0; // Initialize likes
+            try {
+                const result = await recipesCollection.insertOne(recipe);
+                res.send(result);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ message: 'Failed to add recipe' });
+            }
         });
 
-        //  Update a recipe
-        app.put("/recipes/:id", async (req, res) => {
+        // Update a recipe
+        app.put('/recipes/:id', async (req, res) => {
             const id = req.params.id;
             const updatedRecipe = req.body;
 
@@ -82,23 +105,31 @@ async function run() {
                 },
             };
 
-            const result = await recipesCollection.updateOne(filter, updateDoc);
-            res.send(result);
-        });
-
-        //  Delete a recipe
-        app.delete('/recipes/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await recipesCollection.deleteOne(query);
-            res.send(result);
-        });
-
-        //  Patch likes (optional feature)
-        app.patch('/recipes/:id/like', async (req, res) => {
-            const { id } = req.params;
-
             try {
+                const result = await recipesCollection.updateOne(filter, updateDoc);
+                res.send(result);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ message: 'Failed to update recipe' });
+            }
+        });
+
+        // Delete a recipe
+        app.delete('/recipes/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                const result = await recipesCollection.deleteOne({ _id: new ObjectId(id) });
+                res.send(result);
+            } catch (err) {
+                console.error(err);
+                res.status(400).send({ message: 'Invalid recipe ID' });
+            }
+        });
+
+        // Like a recipe (increment likes)
+        app.patch('/recipes/:id/like', async (req, res) => {
+            try {
+                const id = req.params.id;
                 const result = await recipesCollection.updateOne(
                     { _id: new ObjectId(id) },
                     { $inc: { likes: 1 } }
@@ -115,26 +146,32 @@ async function run() {
             }
         });
 
-        //  Add a user
+        // Add a user
         app.post('/users', async (req, res) => {
-            const userProfile = req.body;
-            const result = await usersCollection.insertOne(userProfile);
-            res.send(result);
+            try {
+                const userProfile = req.body;
+                const result = await usersCollection.insertOne(userProfile);
+                res.send(result);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ message: 'Failed to add user' });
+            }
         });
 
         // Confirm DB connection
         await client.db("admin").command({ ping: 1 });
         console.log(" Connected to MongoDB");
+
     } finally {
-        // Optional: Close the connection on exit
-        // await client.close();
+        // Leave connection open while app is running
     }
 }
+
 run().catch(console.dir);
 
 // Base route
 app.get('/', (req, res) => {
-    res.send('Explore recipes and make your own!');
+    res.send(' Explore recipes and make your own!');
 });
 
 // Start server
