@@ -77,7 +77,7 @@ async function run() {
                 return res.status(400).send({ message: "ownerEmail is required" });
             }
 
-            recipe.likes = 0; // Initialize likes
+            recipe.likes = 0; 
             try {
                 const result = await recipesCollection.insertOne(recipe);
                 res.send(result);
@@ -163,7 +163,7 @@ async function run() {
         console.log(" Connected to MongoDB");
 
     } finally {
-        // Leave connection open while app is running
+        
     }
 }
 
