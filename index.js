@@ -198,8 +198,8 @@ async function run() {
         });
 
         // Confirm DB connection
-        await client.db("admin").command({ ping: 1 });
-        console.log(" Connected to MongoDB");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log(" Connected to MongoDB");
 
     } finally {
         
